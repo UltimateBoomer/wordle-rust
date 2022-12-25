@@ -14,7 +14,7 @@ pub struct Config {
 
 pub struct WordleGame {
     pub word: String,
-    pub word_list: Vec<String>
+    pub word_list: Vec<String>,
 }
 
 pub fn setup(conf: Config) -> Result<WordleGame, io::Error> {
