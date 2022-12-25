@@ -14,16 +14,23 @@ pub struct Config {
 
 pub struct WordleGame {
     pub word: String,
+    pub word_list: Vec<String>
 }
 
 pub fn setup(conf: Config) -> Result<WordleGame, io::Error> {
     let word_file = File::open(&conf.filename)?;
     
     let reader = BufReader::new(word_file);
-    let words: Vec<String> = reader.lines().map(Result::unwrap).collect();
+    let mut word_list: Vec<String> = reader.lines().map(Result::unwrap).collect();
+    word_list.sort_unstable();
 
-    println!("Using word file: {} ({} words)", conf.filename, words.len());
+    println!("Using word file: {} ({} words)", conf.filename, word_list.len());
     println!("Max guesses: {}", conf.max_guesses);
 
-    return Result::Ok(WordleGame { word: words.choose(&mut rand::thread_rng()).unwrap().clone() });
+    return Result::Ok(WordleGame {
+        word: word_list.choose(&mut rand::thread_rng())
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "File is empty"))?
+            .clone(), 
+        word_list,
+    });
 }
