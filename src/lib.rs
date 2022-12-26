@@ -1,3 +1,5 @@
+pub mod cli;
+
 use std::{io::{BufReader, BufRead, self}, fs::File};
 
 use clap::Parser;
@@ -14,6 +16,7 @@ pub struct Config {
 }
 
 /// Defines the starting conditions of a Wordle game.
+#[derive(Clone)]
 pub struct WordleGame {
     pub word: String,
     pub word_list: Vec<String>,
@@ -25,7 +28,7 @@ impl WordleGame {
     /// Create a `WordleGame` from the given config.
     /// # Errors
     /// The function will return an error if the word file cannot be read, or if the the word file is empty.
-    pub fn new(conf: Config) -> Result<WordleGame, io::Error> {
+    pub fn from_config(conf: &Config) -> Result<WordleGame, io::Error> {
         let word_file = File::open(&conf.filename)?;
         
         let reader = BufReader::new(word_file);
@@ -60,6 +63,14 @@ pub struct WordleSession {
 }
 
 impl WordleSession {
+    /// Create a `WordleSession` in starting state.
+    pub fn new(game: &WordleGame) -> WordleSession {
+        WordleSession { 
+            game: game.clone(), 
+            guesses: Vec::new(), 
+        }
+    }
+
     /// Makes a guess using `word`. If the guess is valid, then append the guess onto self. 
     pub fn guess(&mut self, word: &String) -> Result<GameResult, GuessResult> {
         let result = self.eval(word);
@@ -119,7 +130,7 @@ pub enum GuessResult {
     Invalid,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Hash)]
 pub enum LetterValidity {
     Correct,
     WrongPos,
@@ -128,9 +139,20 @@ pub enum LetterValidity {
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
+    use std::{vec};
 
-    use crate::{WordleGame, WordleSession, GuessResult, LetterValidity};
+    use crate::{WordleGame, WordleSession, GuessResult, LetterValidity, Config};
+
+    #[test]
+    fn new_wordle_game() {
+        let game = WordleGame::from_config(&Config { 
+            filename: String::from("words.txt"), 
+            max_guesses: 5 
+        });
+        assert!(game.is_ok());
+        let game = game.unwrap();
+        assert!(!game.word_list.is_empty());
+    }
 
     #[test]
     fn eval1() {
