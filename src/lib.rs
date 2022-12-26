@@ -74,7 +74,7 @@ impl WordleSession {
                     Ok(GameResult::Cont)
                 }
             }
-            GuessResult::Invalid | GuessResult::NotInDict => {
+            _ => {
                 Err(result)
             }
         }
@@ -84,6 +84,8 @@ impl WordleSession {
     pub fn eval(&self, word: &String) -> GuessResult {
         if word.len() != self.game.word_len {
             GuessResult::Invalid
+        } else if self.guesses.iter().any(|w| w.0 == *word) {
+            GuessResult::AlreadyUsed
         } else if self.game.word_list.binary_search(&word).is_err() {
             GuessResult::NotInDict
         } else {
@@ -113,11 +115,116 @@ pub enum GameResult {
 pub enum GuessResult {
     Ok(Vec<LetterValidity>),
     NotInDict,
+    AlreadyUsed,
     Invalid,
 }
 
+#[derive(PartialEq)]
 pub enum LetterValidity {
     Correct,
     WrongPos,
     Incorrect,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::vec;
+
+    use crate::{WordleGame, WordleSession, GuessResult, LetterValidity};
+
+    #[test]
+    fn eval1() {
+        let ws = WordleSession {
+            game: WordleGame { 
+                word: String::from("aaaaa"), 
+                word_list: vec![String::from("aaaaa"), String::from("bbbbb")], 
+                word_len: 5, 
+                max_guesses: 2,
+            },
+            guesses: Vec::new(),
+        };
+        assert!(matches!(ws.eval(&String::from("x")), GuessResult::Invalid))
+    }
+
+    #[test]
+    fn eval2() {
+        use LetterValidity::*;
+
+        let ws = WordleSession {
+            game: WordleGame { 
+                word: String::from("apple"), 
+                word_list: vec![String::from("apple"), String::from("grape")], 
+                word_len: 5, 
+                max_guesses: 2,
+            },
+            guesses: Vec::new(),
+        };
+        let r = ws.eval(&String::from("grape"));
+        assert!(match r {
+            GuessResult::Ok(v) => v == vec![Incorrect, Incorrect, WrongPos, WrongPos, Correct],
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn eval3() {
+        let ws = WordleSession {
+            game: WordleGame { 
+                word: String::from("aaaaa"), 
+                word_list: vec![String::from("aaaaa"), String::from("bbbbb")], 
+                word_len: 5, 
+                max_guesses: 2,
+            },
+            guesses: Vec::new(),
+        };
+        assert!(matches!(ws.eval(&String::from("ccccc")), GuessResult::NotInDict))
+    }
+
+    #[test]
+    fn eval4() {
+        let mut ws = WordleSession {
+            game: WordleGame { 
+                word: String::from("aaaaa"), 
+                word_list: vec![String::from("aaaaa"), String::from("bbbbb")], 
+                word_len: 5, 
+                max_guesses: 2,
+            },
+            guesses: Vec::new(),
+        };
+        assert!(ws.guess(&String::from("bbbbb")).is_ok());
+        assert!(matches!(ws.eval(&String::from("bbbbb")), GuessResult::AlreadyUsed))
+    }
+
+    #[test]
+    fn guess1() {
+        use LetterValidity::*;
+
+        let mut ws = WordleSession {
+            game: WordleGame { 
+                word: String::from("aaaaa"), 
+                word_list: vec![String::from("aaaaa"), String::from("bbbbb")], 
+                word_len: 5, 
+                max_guesses: 2,
+            },
+            guesses: Vec::new(),
+        };
+        assert!(ws.guess(&String::from("bbbbb")).is_ok());
+        assert!(*ws.guesses.get(0).unwrap() ==
+            (String::from("bbbbb"), vec![Incorrect, Incorrect, Incorrect, Incorrect, Incorrect]))
+    }
+
+    #[test]
+    fn guess2() {
+        let mut ws = WordleSession {
+            game: WordleGame { 
+                word: String::from("aaaaa"), 
+                word_list: vec![String::from("aaaaa"), String::from("bbbbb")], 
+                word_len: 5, 
+                max_guesses: 2,
+            },
+            guesses: Vec::new(),
+        };
+        assert!(ws.guess(&String::from("ccccc")).is_err());
+        assert!(ws.guesses.is_empty());
+    }
 }
