@@ -1,10 +1,10 @@
 use clap::Parser;
 
-use wordle::{Config};
+use wordle::{Config, WordleGame};
 
 fn main() {
     let conf = Config::parse();
 
-    let game = wordle::setup(conf).expect("Error initializing game");
+    let game = WordleGame::new(conf).expect("Error initializing game");
     println!("Word: {}", &game.word);
 }
