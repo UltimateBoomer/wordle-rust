@@ -29,41 +29,67 @@ impl<R: BufRead, W: Write> WordleSessionCLI<R, W> {
 
     /// Run the Wordle game.
     pub fn run(&mut self) -> Result<(), io::Error> {
+        let mut result = Ok(GameResult::Cont);
         loop {
-            write!(&mut self.writer, "{}{}", termion::clear::All, termion::cursor::Goto(1, 1))?;
-            self.print_board()?;
-            
-            loop {
-                writeln!(&mut self.writer, "Enter your word:")?;
-                
-                let mut input = String::new();
-                self.reader.read_line(&mut input)?;
-                let input = input.trim().to_string();
-
-                write!(&mut self.writer, "\r")?;
-
-                let r = self.session.guess(&input);
-                writeln!(&mut self.writer, "You entered: {}", &input)?;
-                match r {
-                    Ok(result) => match result {
-                        GameResult::Cont => break,
-                        GameResult::OutOfGuesses => {
-                            writeln!(&mut self.writer, "Game over: out of guesses.")?;
-                            return Ok(());
-                        },
-                        GameResult::Win => {
-                            writeln!(&mut self.writer, "You win!")?;
-                            return Ok(());
-                        },
-                    },
-                    Err(result) => match result {
-                        GuessResult::AlreadyUsed => writeln!(&mut self.writer, "You've already used that word!")?,
-                        GuessResult::NotInDict => writeln!(&mut self.writer, "That word doesn't exist.")?,
-                        GuessResult::Invalid => writeln!(&mut self.writer, "Invalid word.")?,
-                        _ => continue,
+            self.run_loop(&mut result)?;
+            match &result {
+                Ok(r) => match r {
+                    GameResult::Cont => continue,
+                    GameResult::OutOfGuesses | GameResult::Win => {
+                        self.end_game(r)?;
+                        break
                     }
-                }
+                },
+                _ => continue,
             }
+            
+        }
+        Ok(())
+    }
+
+    /// Clear the terminal and draw the board
+    fn draw_head(&mut self) -> Result<(), io::Error> {
+        write!(&mut self.writer, "{}{}", termion::clear::All, termion::cursor::Goto(1, 1))?;
+        self.print_board()?;
+        Ok(())
+    }
+
+    /// Receive input from the player for the current guess
+    fn run_loop(&mut self, prev_result: &mut Result<GameResult, GuessResult>) -> Result<(), io::Error> {
+        self.draw_head()?;
+        match prev_result {
+            Ok(_) => writeln!(&mut self.writer)?,
+            Err(r) => match r {
+                GuessResult::AlreadyUsed => writeln!(&mut self.writer, "You've already used that word!")?,
+                GuessResult::Invalid => writeln!(&mut self.writer, "Invalid word.")?,
+                GuessResult::NotInDict => writeln!(&mut self.writer, "That word doesn't exist.")?,
+                _ => writeln!(&mut self.writer)?,
+            },
+        }
+        writeln!(&mut self.writer, "Enter your word:")?;
+        
+        let mut input = String::new();
+        self.reader.read_line(&mut input)?;
+        let input = input.trim().to_string();
+        
+        *prev_result = self.session.guess(&input);
+        Ok(())
+    }
+
+    /// Draw end result
+    fn end_game(&mut self, result: &GameResult) -> Result<(), io::Error> {
+        match result {
+            GameResult::OutOfGuesses => {
+                self.draw_head()?;
+                writeln!(&mut self.writer, "Game over: out of guesses.")?;
+                Ok(())
+            },
+            GameResult::Win => {
+                self.draw_head()?;
+                writeln!(&mut self.writer, "You win!")?;
+                Ok(())
+            },
+            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid result"))
         }
     }
 
