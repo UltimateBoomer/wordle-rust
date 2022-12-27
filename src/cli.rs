@@ -29,9 +29,8 @@ impl<R: BufRead, W: Write> WordleSessionCLI<R, W> {
 
     /// Run the Wordle game.
     pub fn run(&mut self) -> Result<(), io::Error> {
-        writeln!(&mut self.writer, "Welcome to Wordle in Rust!")?;
-        
         loop {
+            write!(&mut self.writer, "{}{}", termion::clear::All, termion::cursor::Goto(1, 1))?;
             self.print_board()?;
             
             loop {
@@ -69,13 +68,18 @@ impl<R: BufRead, W: Write> WordleSessionCLI<R, W> {
     }
 
     /// Print the previous guesses
-    pub fn print_board(&mut self) -> Result<(), io::Error> {
+    fn print_board(&mut self) -> Result<(), io::Error> {
         for (w, v) in self.session.guesses.iter() {
             for (c, lv) in w.chars().into_iter().zip(v) {
                 write!(&mut self.writer, "{}{}", self.color_map.get(lv).unwrap(), c.to_string())?;
             }
             writeln!(&mut self.writer, "{}", style::Reset)?;
         }
+        // Print spaces for remaining attempts
+        for _ in self.session.guesses.len()..(self.session.game.max_guesses as usize) {
+            writeln!(&mut self.writer, "{}", "·".repeat(self.session.game.word_len))?;
+        }   
+
         Ok(())
     }
 }
@@ -84,7 +88,7 @@ impl<R: BufRead, W: Write> WordleSessionCLI<R, W> {
 mod tests {
     use std::io::Write;
 
-    use termion::color;
+    use termion::{color, style};
 
     use crate::{WordleGame};
 
@@ -98,10 +102,15 @@ mod tests {
             word: String::from("apple"), 
             word_list: vec![String::from("apple"), String::from("grape")], 
             word_len: 5, 
-            max_guesses: 2,
+            max_guesses: 3,
         }, input.as_slice(), &mut output);
         session.print_board().expect("Failed to print to output");
-        assert!(output.is_empty());
+        let mut expected_output = Vec::new();
+        for _ in 0..3 {
+            writeln!(&mut expected_output, "·····").expect("Failed to write to expected output");
+        }
+        assert_eq!(String::from_utf8(output).expect("Output not in UTF-8"), 
+            String::from_utf8(expected_output).expect("Expected output not in UTF-8"));
     }
 
     #[test]
@@ -117,13 +126,14 @@ mod tests {
         assert!(matches!(session.session.guess(&String::from("grape")), Result::Ok(_)));
         session.print_board().expect("Failed to print to output");
         let mut expected_output = Vec::new();
-        writeln!(&mut expected_output, "{}g{}r{}a{}p{}e", 
+        writeln!(&mut expected_output, "{}g{}r{}a{}p{}e{}", 
             color::Fg(color::LightWhite), 
             color::Fg(color::LightWhite), 
             color::Fg(color::LightYellow), 
             color::Fg(color::LightYellow), 
-            color::Fg(color::LightGreen))
-            .expect("Failed to write to expected output");
+            color::Fg(color::LightGreen),
+            style::Reset).expect("Failed to write to expected output");
+        writeln!(&mut expected_output, "·····").expect("Failed to write to expected output");
         
         assert_eq!(String::from_utf8(output).expect("Output not in UTF-8"), 
             String::from_utf8(expected_output).expect("Expected output not in UTF-8"));
