@@ -3,6 +3,7 @@ pub mod cli;
 use std::{io::{BufReader, BufRead, self}, fs::File};
 
 use clap::Parser;
+use counter::Counter;
 use rand::seq::SliceRandom;
 
 /// Configuration for Wordle games.
@@ -102,16 +103,39 @@ impl WordleSession {
         } else if self.game.word_list.binary_search(&word).is_err() {
             GuessResult::NotInDict
         } else {
-            GuessResult::Ok(word.chars().enumerate().map(|(i, c)| {
-                if self.game.word.chars().nth(i).unwrap() == c {
-                    LetterValidity::Correct
-                } else if self.game.word.chars().any(|c2| c == c2) {
-                    LetterValidity::WrongPos
-                } else {
-                    LetterValidity::Incorrect
-                }
-            }).collect())
+            GuessResult::Ok(self.eval_valid(word))
         }
+    }
+
+    /// Assume `word` is a valid guess, evaluates the individual letters of `word` for letter validity.
+    fn eval_valid(&self, word: &String) -> Vec<LetterValidity> {
+        // First pass: mark letters in correct positions, count remaining letters
+        let mut letter_count: Counter<char> = self.game.word.chars().collect();
+        let mut result: Vec<LetterValidity> = Vec::new();
+
+        for (i, c) in word.chars().enumerate() {
+            if self.game.word.chars().nth(i).unwrap() == c {
+                letter_count[&c] -= 1;
+                result.push(LetterValidity::Correct)
+            } else {
+                result.push(LetterValidity::Incorrect)
+            }
+        }
+
+        // Second pass: check validity of remaining letters
+        for (c, v) in word.chars().zip(result.iter_mut()) {
+            match v {
+                LetterValidity::Incorrect => {
+                    if letter_count.contains_key(&c) && letter_count[&c] != 0 {
+                        *v = LetterValidity::WrongPos;
+                        letter_count[&c] -= 1;
+                    }
+                },
+                _ => {},
+            }
+        }
+
+        result
     }
 
     pub fn get_guesses(&self) -> &Vec<(String, Vec<LetterValidity>)> {
@@ -132,6 +156,7 @@ pub enum GameResult {
 }
 
 // Result of guess attempt
+#[derive(PartialEq, Debug)]
 pub enum GuessResult {
     /// Word is a valid guess
     Ok(Vec<LetterValidity>),
@@ -147,7 +172,7 @@ pub enum GuessResult {
 }
 
 /// Wordle letter validity compared to actual word
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub enum LetterValidity {
     /// Letter is in the correct position
     Correct,
@@ -204,10 +229,7 @@ mod tests {
             guesses: Vec::new(),
         };
         let r = ws.eval(&String::from("grape"));
-        assert!(match r {
-            GuessResult::Ok(v) => v == vec![Incorrect, Incorrect, WrongPos, WrongPos, Correct],
-            _ => false,
-        });
+        assert_eq!(r, GuessResult::Ok(vec![Incorrect, Incorrect, WrongPos, WrongPos, Correct]));
     }
 
     #[test]
@@ -237,6 +259,23 @@ mod tests {
         };
         assert!(ws.guess(&String::from("bbbbb")).is_ok());
         assert!(matches!(ws.eval(&String::from("bbbbb")), GuessResult::AlreadyUsed))
+    }
+
+    #[test]
+    fn eval5() {
+        use LetterValidity::*;
+
+        let ws = WordleSession {
+            game: WordleGame { 
+                word: String::from("ababa"), 
+                word_list: vec![String::from("ababa"), String::from("babab")], 
+                word_len: 5, 
+                max_guesses: 2,
+            },
+            guesses: Vec::new(),
+        };
+        let r = ws.eval(&String::from("babab"));
+        assert_eq!(r, GuessResult::Ok(vec![WrongPos, WrongPos, WrongPos, WrongPos, Incorrect]));
     }
 
     #[test]

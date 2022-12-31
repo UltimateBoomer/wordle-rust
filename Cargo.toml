@@ -9,3 +9,4 @@ edition = "2021"
 clap = {version = "*", features = ["derive"]}
 rand = "*"
 termion = "*"
+counter = "*"
