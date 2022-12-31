@@ -54,7 +54,7 @@ impl<R: BufRead, W: Write> WordleSessionCLI<R, W> {
         Ok(())
     }
 
-    /// Receive input from the player for the current guess
+    /// Draw the game, then receive input from the player for the current guess
     fn run_loop(&mut self, prev_result: &mut Result<GameResult, GuessResult>) -> Result<(), io::Error> {
         self.draw_head()?;
         match prev_result {

@@ -29,6 +29,7 @@ impl WordleGame {
     /// # Errors
     /// The function will return an error if the word file cannot be read, or if the the word file is empty.
     pub fn from_config(conf: &Config) -> Result<WordleGame, io::Error> {
+        // Load the file
         let word_file = File::open(&conf.filename)?;
         
         let reader = BufReader::new(word_file);
@@ -37,7 +38,8 @@ impl WordleGame {
         if word_list.is_empty() {
             return Err(io::Error::new(io::ErrorKind::Other, "Word file is empty"));
         }
-
+        
+        // Sort the word list if it is not sorted
         word_list.sort_unstable();
     
         println!("Using word file: {} ({} words)", conf.filename, word_list.len());
@@ -46,7 +48,7 @@ impl WordleGame {
         let selected_word = word_list.choose(&mut rand::thread_rng()).unwrap().clone();
     
         let word_len = word_list.first().unwrap().len();
-    
+        
         return Result::Ok(WordleGame {
             word: selected_word, 
             word_list: word_list,
@@ -117,23 +119,43 @@ impl WordleSession {
     }
 }
 
+/// Game state after the player performs a guess
 pub enum GameResult {
+    /// Player guesses correctly within the guess limit. (End)
     Win,
+
+    /// Continue to next guess
     Cont,
+
+    /// Player has ran out of guesses. (End)
     OutOfGuesses,
 }
 
+// Result of guess attempt
 pub enum GuessResult {
+    /// Word is a valid guess
     Ok(Vec<LetterValidity>),
+
+    /// Word is not in dictionary (word file)
     NotInDict,
+
+    /// Word has already been used in a previous guess
     AlreadyUsed,
+
+    /// Word is invalid for any other reason
     Invalid,
 }
 
+/// Wordle letter validity compared to actual word
 #[derive(PartialEq, Eq, Hash)]
 pub enum LetterValidity {
+    /// Letter is in the correct position
     Correct,
+
+    /// Letter exists but is in the wrong position
     WrongPos,
+
+    /// Letter does not exist
     Incorrect,
 }
 
