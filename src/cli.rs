@@ -81,7 +81,8 @@ impl<R: BufRead, W: Write> WordleSessionCLI<R, W> {
         match result {
             GameResult::OutOfGuesses => {
                 self.draw_head()?;
-                writeln!(&mut self.writer, "Game over: out of guesses.")?;
+                writeln!(&mut self.writer, "Game over.")?;
+                writeln!(&mut self.writer, "Answer: {}", self.session.game.word)?;
                 Ok(())
             },
             GameResult::Win => {
